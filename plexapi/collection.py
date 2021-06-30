@@ -120,29 +120,32 @@ class Collection(PlexPartialObject, AdvancedSettingsMixin, ArtMixin, PosterMixin
     def visibilities(self):
         """ Returns dict representing the different visibilities """
         if self._visible is None:
-            key = '/hubs/sections/%s/manage?metadataItemId=%s' % (self.section().key, self.ratingKey)
-            hubAttrs = self._server.query(key)[0].attrib
-            self._visible = {
-                "library": utils.cast(bool, hubAttrs.get('promotedToRecommended', '0')),
-                "home": utils.cast(bool, hubAttrs.get('promotedToOwnHome', '0')),
-                "shared": utils.cast(bool, hubAttrs.get('promotedToSharedHome', '0'))
-            }
+            try:
+                key = '/hubs/sections/%s/manage?metadataItemId=%s' % (self.section().key, self.ratingKey)
+                hubAttrs = self._server.query(key)[0].attrib
+                self._visible = {
+                    'library': utils.cast(bool, hubAttrs.get('promotedToRecommended', '0')),
+                    'home': utils.cast(bool, hubAttrs.get('promotedToOwnHome', '0')),
+                    'shared': utils.cast(bool, hubAttrs.get('promotedToSharedHome', '0'))
+                }
+            except IndexError:
+                self._visible = {'library': False, 'home': False, 'shared': False}
         return self._visible
 
     @property
     def visibleLibrary(self):
         """ Returns True if this collection is visible on Library. """
-        return self.visibilities()["library"]
+        return self.visibilities()['library']
 
     @property
     def visibleHome(self):
         """ Returns True if this collection is visible on Home. """
-        return self.visibilities()["home"]
+        return self.visibilities()['home']
 
     @property
     def visibleShared(self):
         """ Returns True if this collection is visible on Shared Users' Home. """
-        return self.visibilities()["shared"]
+        return self.visibilities()['shared']
 
     @property
     def metadataType(self):
@@ -273,17 +276,17 @@ class Collection(PlexPartialObject, AdvancedSettingsMixin, ArtMixin, PosterMixin
 
         key = '/hubs/sections/%s/manage?metadataItemId=%s' % (self.section().key, self.ratingKey)
 
-        library_change = (library is None and self.visibleLibrary) or library
-        key += '&promotedToRecommended=%s' % (1 if library_change else 0)
-        self._visible["library"] = library_change
+        promote = (library is None and self.visibleLibrary) or library
+        key += '&promotedToRecommended=%s' % (1 if promote else 0)
+        self._visible['library'] = promote
 
-        home_change = (home is None and self.visibleHome) or home
-        key += '&promotedToOwnHome=%s' % (1 if home_change else 0)
-        self._visible["home"] = home_change
+        promote = (home is None and self.visibleHome) or home
+        key += '&promotedToOwnHome=%s' % (1 if promote else 0)
+        self._visible['home'] = promote
 
-        shared_change = (shared is None and self.visibleShared) or shared
-        key += '&promotedToSharedHome=%s' % (1 if shared_change else 0)
-        self._visible["shared"] = shared_change
+        promote = (shared is None and self.visibleShared) or shared
+        key += '&promotedToSharedHome=%s' % (1 if promote else 0)
+        self._visible['shared'] = promote
 
         self._server.query(key, method=self._server._session.post)
 
