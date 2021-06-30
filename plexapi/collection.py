@@ -90,6 +90,7 @@ class Collection(PlexPartialObject, AdvancedSettingsMixin, ArtMixin, PosterMixin
         self.userRating = utils.cast(float, data.attrib.get('userRating'))
         self._items = None  # cache for self.items
         self._section = None  # cache for self.section
+        self._visible = None  # cache for self.visibilities
 
     def __len__(self):  # pragma: no cover
         return len(self.items())
@@ -115,6 +116,33 @@ class Collection(PlexPartialObject, AdvancedSettingsMixin, ArtMixin, PosterMixin
             return 'photo'
         else:
             raise Unsupported('Unexpected collection type')
+
+    def visibilities(self):
+        """ Returns dict representing the different visibilities """
+        if self._visible is None:
+            key = '/hubs/sections/%s/manage?metadataItemId=%s' % (self.section().key, self.ratingKey)
+            hubAttrs = self._server.query(key)[0].attrib
+            self._visible = {
+                "library": utils.cast(bool, hubAttrs.get('promotedToRecommended', '0')),
+                "home": utils.cast(bool, hubAttrs.get('promotedToOwnHome', '0')),
+                "shared": utils.cast(bool, hubAttrs.get('promotedToSharedHome', '0'))
+            }
+        return self._visible
+
+    @property
+    def visibleLibrary(self):
+        """ Returns True if this collection is visible on Library. """
+        return self.visibilities()["library"]
+
+    @property
+    def visibleHome(self):
+        """ Returns True if this collection is visible on Home. """
+        return self.visibilities()["home"]
+
+    @property
+    def visibleShared(self):
+        """ Returns True if this collection is visible on Shared Users' Home. """
+        return self.visibilities()["shared"]
 
     @property
     def metadataType(self):
@@ -225,6 +253,39 @@ class Collection(PlexPartialObject, AdvancedSettingsMixin, ArtMixin, PosterMixin
         if key is None:
             raise BadRequest('Unknown sort dir: %s. Options: %s' % (sort, list(sort_dict)))
         self.editAdvanced(collectionSort=key)
+
+    def visibleUpdate(self, library=None, home=None, shared=None):
+        """ Update the visible on setting.
+
+            Parameters:
+                library (bool): Set visible on library.
+                home (bool): Set visible on Home.
+                shared (bool): Set visible on Shared Users' Home.
+
+            Example:
+
+                .. code-block:: python
+
+                    collection.visibleUpdate(library=True, home=False)
+        """
+        if library is None and home is None and shared is None:
+            raise BadRequest('No change requested')
+
+        key = '/hubs/sections/%s/manage?metadataItemId=%s' % (self.section().key, self.ratingKey)
+
+        library_change = (library is None and self.visibleLibrary) or library
+        key += '&promotedToRecommended=%s' % (1 if library_change else 0)
+        self._visible["library"] = library_change
+
+        home_change = (home is None and self.visibleHome) or home
+        key += '&promotedToOwnHome=%s' % (1 if home_change else 0)
+        self._visible["home"] = home_change
+
+        shared_change = (shared is None and self.visibleShared) or shared
+        key += '&promotedToSharedHome=%s' % (1 if shared_change else 0)
+        self._visible["shared"] = shared_change
+
+        self._server.query(key, method=self._server._session.post)
 
     def addItems(self, items):
         """ Add items to the collection.
